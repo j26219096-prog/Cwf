@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Q&A Assistant</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 850px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 15px;
+      font-size: 2em;
+      color: #ffcc70;
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      border-radius: 12px;
+      border: none;
+      margin-bottom: 10px;
+      background: #1e293b;
+      color: #eaeaea;
+      cursor: pointer;
+    }
+
+    #fileDetails {
+      font-size: 0.9em;
+      color: #9ae66e;
+      margin-bottom: 10px;
+    }
+
+    .chat-box {
+      flex: 1;
+      background: rgba(0,0,0,0.2);
+      border-radius: 15px;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bubble {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 15px;
+      font-size: 1em;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .question {
+      align-self: flex-end;
+      background: #e94560;
+      color: #fff;
+      border-bottom-right-radius: 5px;
+    }
+
+    .answer {
+      align-self: flex-start;
+      background: #1e293b;
+      color: #9ae66e;
+      border-bottom-left-radius: 5px;
+      position: relative;
+    }
+
+    .typing {
+      display: inline-block;
+      width: 1em;
+      text-align: center;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .input-area {
+      display: flex;
+      margin-top: 10px;
+      gap: 10px;
+    }
+
+    textarea {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 1em;
+      resize: none;
+      background: #1e293b;
+      color: #fff;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: #ffcc70;
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #ffd98e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📄 PDF Q&A Assistant</h1>
+
+    <input type="file" id="fileInput" accept="application/pdf">
+    <div id="fileDetails">⚡ Upload a PDF to get started.</div>
+
+    <div class="chat-box" id="chatBox"></div>
+
+    <div class="input-area">
+      <textarea id="question" placeholder="Ask me something about the PDF..."></textarea>
+      <button onclick="askQuestion()">Send ➤</button>
+    </div>
+  </div>
+
+  <script>
+    let pdfText = "";
+
+    // Load PDF text
+    document.getElementById("fileInput").addEventListener("change", function() {
+      const file = this.files[0];
+      const fileDetails = document.getElementById("fileDetails");
+
+      if (!file) return;
+
+      fileDetails.innerHTML = `✅ Loaded: <b>${file.name}</b> (${(file.size/1024).toFixed(2)} KB)`;
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const typedarray = new Uint8Array(e.target.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+        let text = "";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(" ");
+          text += pageText + "\n";
+        }
+        pdfText = text;
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Add message bubble
+    function addMessage(text, type) {
+      const chatBox = document.getElementById("chatBox");
+      const bubble = document.createElement("div");
+      bubble.classList.add("bubble", type);
+      bubble.innerText = text;
+      chatBox.appendChild(bubble);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return bubble;
+    }
+
+    // Simulate typing animation
+    function showTyping() {
+      const bubble = addMessage("...", "answer");
+      bubble.innerHTML = `<span class="typing">.</span><span class="typing">.</span><span class="typing">.</span>`;
+      return bubble;
+    }
+
+    // Simple keyword-based Q&A
+    function askQuestion() {
+      const question = document.getElementById("question").value.trim();
+      if (!question) return;
+
+      addMessage(question, "question");
+      document.getElementById("question").value = "";
+
+      if (!pdfText) {
+        addMessage("⚠️ Please upload a PDF first.", "answer");
+        return;
+      }
+
+      const typingBubble = showTyping();
+
+      setTimeout(() => {
+        let keywords = question.toLowerCase().split(" ");
+        let sentences = pdfText.split(/[\.\?\!]/);
+
+        let found = sentences.find(s => keywords.some(k => s.toLowerCase().includes(k)));
+
+        typingBubble.remove(); // remove "..." bubble
+
+        if (found) {
+          addMessage(found.trim(), "answer");
+        } else {
+          addMessage("Sorry, I couldn’t find an answer in the PDF 🤔", "answer");
+        }
+      }, 1500); // Delay to simulate AI thinking
+    }
+  </script>
+</body>
+</html>
